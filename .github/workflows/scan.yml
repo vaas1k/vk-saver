@@ -1,0 +1,115 @@
+name: scan
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    env:
+      REPORTS: reports
+      TRIVY_VERSION: 0.76.2
+      TRIVY_SHA256: bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf
+      GITLEAKS_VERSION: 8.30.1
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+      ZIZMOR_VERSION: 1.32.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install scanners
+        run: |
+          mkdir -p "$REPORTS" "$RUNNER_TEMP/bin"
+          cd "$RUNNER_TEMP"
+          curl -fsSLo trivy.tgz "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          echo "$TRIVY_SHA256  trivy.tgz" | sha256sum -c -
+          tar -xzf trivy.tgz -C bin trivy
+          curl -fsSLo gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "$GITLEAKS_SHA256  gitleaks.tgz" | sha256sum -c -
+          tar -xzf gitleaks.tgz -C bin gitleaks
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - uses: taiki-e/install-action@4a76afe23f9e08d2d9550fb56e556444e8611d21 # v2.90.4
+        with:
+          tool: cargo-audit@0.23.0
+
+      - name: Trivy
+        run: |
+          trivy fs --quiet --scanners vuln,secret,misconfig --skip-dirs src-tauri/target --skip-dirs node_modules \
+            --format json -o "$REPORTS/trivy.json" .
+          trivy convert --format sarif -o "$REPORTS/trivy.sarif" "$REPORTS/trivy.json"
+
+      - name: cargo audit
+        if: ${{ !cancelled() }}
+        run: cargo audit --file src-tauri/Cargo.lock --json > "$REPORTS/cargo-audit.json" || true
+
+      - name: gitleaks
+        if: ${{ !cancelled() }}
+        run: |
+          gitleaks git --redact --no-banner --exit-code 0 --report-format json --report-path "$REPORTS/gitleaks.json" .
+          gitleaks git --redact --no-banner --exit-code 0 --report-format sarif --report-path "$REPORTS/gitleaks.sarif" .
+
+      - name: zizmor
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pipx run "zizmor==${ZIZMOR_VERSION}" --format json .github/workflows > "$REPORTS/zizmor.json" || true
+          pipx run "zizmor==${ZIZMOR_VERSION}" --format sarif .github/workflows > "$REPORTS/zizmor.sarif" || true
+
+      - name: Summary
+        if: ${{ !cancelled() }}
+        run: .github/scripts/scan-summary.sh summary "$REPORTS" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: scan-reports
+          path: reports/
+          if-no-files-found: error
+
+      # Code scanning needs a public repo on a personal account: uploads start once it is public.
+      - name: Repository visibility
+        id: repo
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          private=$(gh api "repos/$GITHUB_REPOSITORY" --jq .private)
+          echo "private=$private" >> "$GITHUB_OUTPUT"
+          if [ "$private" = true ]; then
+            echo "SARIF upload to Code scanning skipped: the repository is private." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        if: ${{ !cancelled() && steps.repo.outputs.private == 'false' && github.event.pull_request.head.repo.fork != true }}
+        with:
+          sarif_file: reports/trivy.sarif
+          category: trivy
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        if: ${{ !cancelled() && steps.repo.outputs.private == 'false' && github.event.pull_request.head.repo.fork != true }}
+        with:
+          sarif_file: reports/gitleaks.sarif
+          category: gitleaks
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        if: ${{ !cancelled() && steps.repo.outputs.private == 'false' && github.event.pull_request.head.repo.fork != true }}
+        with:
+          sarif_file: reports/zizmor.sarif
+          category: zizmor
+
+      - name: Gate
+        if: ${{ !cancelled() }}
+        run: .github/scripts/scan-summary.sh gate "$REPORTS"

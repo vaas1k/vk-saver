@@ -1,0 +1,24 @@
+[package]
+name = "vk-saver"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT"
+
+# A lib named like the bin collides with it on Windows PDB files.
+[lib]
+name = "vk_saver_lib"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }
+
+[dependencies]
+tauri = { version = "2.12.5", features = [] }
+vk-engine = { path = "engine" }
+tauri-plugin-dialog = "2.8.4"
+tauri-plugin-opener = "2.7.3"
+serde_json = "1.0.154"
+
+[workspace]
+members = ["engine"]
