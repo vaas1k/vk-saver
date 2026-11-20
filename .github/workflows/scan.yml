@@ -24,11 +24,20 @@ jobs:
       GITLEAKS_VERSION: 8.30.1
       GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
       ZIZMOR_VERSION: 1.32.0
+      SEMGREP_VERSION: 1.186.0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: src-tauri
+
+      - name: rustfmt
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 
       - name: Install scanners
         run: |
@@ -44,7 +53,7 @@ jobs:
 
       - uses: taiki-e/install-action@4a76afe23f9e08d2d9550fb56e556444e8611d21 # v2.90.4
         with:
-          tool: cargo-audit@0.23.0
+          tool: cargo-audit@0.23.0,cargo-deny@0.21.0
 
       - name: Trivy
         run: |
@@ -55,6 +64,19 @@ jobs:
       - name: cargo audit
         if: ${{ !cancelled() }}
         run: cargo audit --file src-tauri/Cargo.lock --json > "$REPORTS/cargo-audit.json" || true
+
+      - name: Clippy (engine)
+        if: ${{ !cancelled() }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq libssl-dev pkg-config
+          cargo clippy --manifest-path src-tauri/Cargo.toml -p vk-engine --all-targets --message-format=json > "$REPORTS/clippy.json" || true
+          python3 .github/scripts/rust_sarif.py "$REPORTS/clippy.json" "$REPORTS/clippy.sarif"
+
+      - name: cargo deny
+        if: ${{ !cancelled() }}
+        run: |
+          cargo deny --manifest-path src-tauri/Cargo.toml check bans sources > "$REPORTS/cargo-deny.txt" 2>&1
+          echo $? > "$REPORTS/cargo-deny.exit"
 
       - name: gitleaks
         if: ${{ !cancelled() }}
@@ -69,6 +91,15 @@ jobs:
         run: |
           pipx run "zizmor==${ZIZMOR_VERSION}" --format json .github/workflows > "$REPORTS/zizmor.json" || true
           pipx run "zizmor==${ZIZMOR_VERSION}" --format sarif .github/workflows > "$REPORTS/zizmor.sarif" || true
+
+      - name: Semgrep
+        if: ${{ !cancelled() }}
+        run: |
+          pipx run "semgrep==${SEMGREP_VERSION}" scan \
+            --config p/rust --config p/javascript \
+            --exclude "src-tauri/target" \
+            --metrics=off \
+            --sarif --output "$REPORTS/semgrep.sarif" . || true
 
       - name: Summary
         if: ${{ !cancelled() }}
@@ -109,6 +140,16 @@ jobs:
         with:
           sarif_file: reports/zizmor.sarif
           category: zizmor
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        if: ${{ !cancelled() && steps.repo.outputs.private == 'false' && github.event.pull_request.head.repo.fork != true }}
+        with:
+          sarif_file: reports/clippy.sarif
+          category: clippy
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        if: ${{ !cancelled() && steps.repo.outputs.private == 'false' && github.event.pull_request.head.repo.fork != true }}
+        with:
+          sarif_file: reports/semgrep.sarif
+          category: semgrep
 
       - name: Gate
         if: ${{ !cancelled() }}

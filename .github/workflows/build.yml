@@ -37,3 +37,4 @@ jobs:
         working-directory: src-tauri
         run: cargo test --workspace
       - run: npm test
+      - run: npm run lint

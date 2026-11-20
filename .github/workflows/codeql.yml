@@ -1,0 +1,47 @@
+name: codeql
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  schedule:
+    - cron: "23 4 * * 3"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, rust]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: github/codeql-action/init@55aa1d29038906879490fb63e58ae8bac369c88f # codeql-bundle-v2.27.5
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Build JavaScript
+        if: matrix.language == 'javascript-typescript'
+        run: npm ci
+
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        if: matrix.language == 'rust'
+
+      # The engine is the platform-independent crate; the tauri shell needs gtk/webkit2gtk.
+      - name: Install Rust build deps
+        if: matrix.language == 'rust'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libssl-dev pkg-config
+
+      - name: Build Rust (engine)
+        if: matrix.language == 'rust'
+        run: cargo build --manifest-path src-tauri/Cargo.toml -p vk-engine
+
+      - uses: github/codeql-action/analyze@55aa1d29038906879490fb63e58ae8bac369c88f # codeql-bundle-v2.27.5

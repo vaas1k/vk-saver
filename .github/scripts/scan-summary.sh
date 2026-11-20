@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Usage: scan-summary.sh summary|gate <reports dir>
 # summary: markdown for $GITHUB_STEP_SUMMARY; gate: exit 1 on critical/high vulnerabilities
-# with a fix or on any leaked secret. Prints no secret values (gitleaks runs with --redact).
+# with a fix, on any leaked secret, on any cargo-audit vulnerability, or on a cargo-deny
+# bans/sources violation. Prints no secret values (gitleaks runs with --redact).
 set -euo pipefail
 mode=$1
 dir=$2
@@ -20,11 +21,21 @@ secrets() {
   echo "$n"
 }
 
+audit_vulns() {
+  [ -f "$dir/cargo-audit.json" ] && jq '.vulnerabilities.count' "$dir/cargo-audit.json" || echo 0
+}
+
+deny_failed() {
+  [ -f "$dir/cargo-deny.exit" ] && cat "$dir/cargo-deny.exit" || echo 0
+}
+
 if [ "$mode" = gate ]; then
   fixable=$(trivy_fixable)
   leaked=$(secrets)
-  echo "critical/high vulnerabilities with a fix: $fixable; secrets: $leaked"
-  [ "$fixable" -eq 0 ] && [ "$leaked" -eq 0 ]
+  audit=$(audit_vulns)
+  deny=$(deny_failed)
+  echo "critical/high vulns with a fix: $fixable; secrets: $leaked; cargo-audit vulns: $audit; cargo-deny failed: $deny"
+  [ "$fixable" -eq 0 ] && [ "$leaked" -eq 0 ] && [ "$audit" -eq 0 ] && [ "$deny" -eq 0 ]
   exit
 fi
 
@@ -60,6 +71,29 @@ else
   echo "### cargo audit: no report"
 fi
 
+if [ -f "$dir/clippy.sarif" ]; then
+  echo "### clippy (vk-engine)"
+  echo "Findings by level: $(jq '[.runs[]?.results[]?.level]' "$dir/clippy.sarif" | counts)"
+  echo
+  echo "| Level | Rule | Message | File | Line |"
+  echo "|---|---|---|---|---|"
+  jq -r --argjson n "$rows" '[.runs[]? | .results[]? | [.level, .ruleId, .message.text, (.locations[0].physicalLocation.artifactLocation.uri // ""), (.locations[0].physicalLocation.region.startLine // 1)]]
+    | .[:$n][] | "| " + join(" | ") + " |"' "$dir/clippy.sarif"
+  echo
+else
+  echo "### clippy: no report"
+fi
+
+if [ -f "$dir/cargo-deny.txt" ]; then
+  echo "### cargo deny (bans + sources)"
+  echo "Exit code: $(cat "$dir/cargo-deny.exit" 2>/dev/null || echo 0)"
+  echo
+  tail -n 20 "$dir/cargo-deny.txt" | sed 's/^/    /'
+  echo
+else
+  echo "### cargo deny: no report"
+fi
+
 if [ -f "$dir/gitleaks.json" ]; then
   echo "### gitleaks (full history, redacted)"
   echo "Leaks: $(jq 'length' "$dir/gitleaks.json")"
@@ -86,4 +120,17 @@ if [ -f "$dir/zizmor.json" ]; then
   echo
 else
   echo "### zizmor: no report"
+fi
+
+if [ -f "$dir/semgrep.sarif" ]; then
+  echo "### semgrep (p/rust + p/javascript)"
+  echo "Findings: $(jq '[.runs[]?.results[]?] | length' "$dir/semgrep.sarif")"
+  echo
+  echo "| Level | Rule | File | Line |"
+  echo "|---|---|---|---|"
+  jq -r --argjson n "$rows" '[.runs[]? | .results[]? | [(.level // "warning"), .ruleId, (.locations[0].physicalLocation.artifactLocation.uri // ""), (.locations[0].physicalLocation.region.startLine // 1)]]
+    | .[:$n][] | "| " + join(" | ") + " |"' "$dir/semgrep.sarif"
+  echo
+else
+  echo "### semgrep: no report"
 fi

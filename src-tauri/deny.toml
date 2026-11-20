@@ -1,0 +1,10 @@
+# Supply-chain guardrails for the public repo. Advisories are covered by
+# cargo-audit (scanned separately); licenses by scripts/gen-licenses.mjs.
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"

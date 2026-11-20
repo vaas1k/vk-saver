@@ -12,6 +12,7 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
+      id-token: write
     defaults:
       run:
         shell: bash
@@ -42,12 +43,27 @@ jobs:
         working-directory: src-tauri
         run: cargo test --workspace
       - run: npm test
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: src-tauri/target/release/vk-saver.exe
+
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+
+      - name: Sign exe (keyless)
+        run: |
+          cosign sign-blob --yes \
+            --output-signature vk-saver.exe.sig \
+            --output-certificate vk-saver.exe.pem \
+            src-tauri/target/release/vk-saver.exe
+
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir out
           cp src-tauri/target/release/vk-saver.exe THIRD-PARTY-LICENSES.txt out/
+          cp vk-saver.exe.sig vk-saver.exe.pem out/
           cd out
           sha256sum vk-saver.exe > SHA256SUMS.txt
-          gh release create "$TAG" --verify-tag --title "$TAG" vk-saver.exe THIRD-PARTY-LICENSES.txt SHA256SUMS.txt
+          gh release create "$TAG" --verify-tag --title "$TAG" vk-saver.exe THIRD-PARTY-LICENSES.txt SHA256SUMS.txt vk-saver.exe.sig vk-saver.exe.pem

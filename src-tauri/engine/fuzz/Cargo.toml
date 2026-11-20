@@ -1,0 +1,25 @@
+[package]
+name = "vk-engine-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.vk-engine]
+path = ".."
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "fuzz_unzip"
+path = "fuzz_targets/fuzz_unzip.rs"
+test = false
+doc = false
+bench = false
