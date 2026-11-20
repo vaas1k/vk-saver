@@ -23,3 +23,10 @@ path = "fuzz_targets/fuzz_unzip.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_search"
+path = "fuzz_targets/fuzz_search.rs"
+test = false
+doc = false
+bench = false

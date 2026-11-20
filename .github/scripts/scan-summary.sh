@@ -22,11 +22,11 @@ secrets() {
 }
 
 audit_vulns() {
-  [ -f "$dir/cargo-audit.json" ] && jq '.vulnerabilities.count' "$dir/cargo-audit.json" || echo 0
+  jq '.vulnerabilities.count' "$dir/cargo-audit.json" 2>/dev/null || echo missing
 }
 
 deny_failed() {
-  [ -f "$dir/cargo-deny.exit" ] && cat "$dir/cargo-deny.exit" || echo 0
+  cat "$dir/cargo-deny.exit" 2>/dev/null || echo missing
 }
 
 if [ "$mode" = gate ]; then

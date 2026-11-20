@@ -184,12 +184,18 @@ impl Backend {
             let Some(root) = self.last_export() else {
                 return Ok(error(Stop::NotExport.kind()));
             };
-            let mut path = PathBuf::from(root);
-            match job {
-                Job::OpenInBrowser => path.push("index.html"),
-                Job::OpenPage(page) => path.push(page),
-                _ => {}
-            }
+            let path = match job {
+                Job::OpenInBrowser => PathBuf::from(&root).join("index.html"),
+                // page is webview-supplied: safe_join keeps it inside the export root
+                // (an absolute path or ".." must not escape it).
+                Job::OpenPage(page) => {
+                    match vk_engine::export::safe_join(Path::new(&root), &page) {
+                        Ok(p) => p,
+                        Err(e) => return Ok(error(e.kind())),
+                    }
+                }
+                _ => PathBuf::from(&root),
+            };
             return Ok(match self.opener.open_path(&path) {
                 Ok(()) => json!({}),
                 Err(_) => error(Stop::Storage(String::new()).kind()),

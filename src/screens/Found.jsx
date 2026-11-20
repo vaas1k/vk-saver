@@ -1,7 +1,7 @@
 import { Box, Button, ButtonGroup, Checkbox, Group, Input, SegmentedControl, Spinner, Text } from '@vkontakte/vkui';
 import { useState } from 'react';
 import * as api from '../api.js';
-import { allSelected, chatRows, shownChats, etaText, formatBytes, foundRows, linksText, nothingToDownload, tooLargeText } from '../run-state.js';
+import { allSelected, chatRows, shownChats, etaText, formatBytes, foundRows, linksText, nothingToDownload, stopText, tooLargeText } from '../run-state.js';
 import { Busy, LIST_ROW, SCREEN_TITLE } from './common.jsx';
 
 const LIST = { listStyle: 'none', margin: 0, padding: 0 };
@@ -22,6 +22,7 @@ export default function Found({ summary, excluded, chatKind, onChatKind, onToggl
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
   const [matches, setMatches] = useState([]);
+  const [searchError, setSearchError] = useState(null);
   if (!summary) return <Group><Busy /></Group>;
   const chats = chatRows(summary, sort);
   const shown = shownChats(chats, chatKind);
@@ -38,9 +39,16 @@ export default function Found({ summary, excluded, chatKind, onChatKind, onToggl
     setSearching(true);
     try {
       const r = await api.search(query);
-      setMatches(Array.isArray(r) ? r : []);
+      if (Array.isArray(r)) {
+        setMatches(r);
+        setSearchError(null);
+      } else {
+        setMatches([]);
+        setSearchError(stopText(r?.error));
+      }
     } catch {
       setMatches([]);
+      setSearchError(null);
     } finally {
       setSearched(true);
       setSearching(false);
@@ -106,8 +114,8 @@ export default function Found({ summary, excluded, chatKind, onChatKind, onToggl
 
         <Text style={{ marginTop: 16, fontWeight: 600 }}>Поиск по сообщениям</Text>
         <form onSubmit={(e) => { e.preventDefault(); runSearch(); }} style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Текст из переписок" aria-label="Поиск по сообщениям" />
-          <Button size="m" type="submit" disabled={q.trim().length < 2 || searching}>Найти</Button>
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Текст из переписок" aria-label="Поиск по сообщениям" disabled={disabled} />
+          <Button size="m" type="submit" disabled={disabled || q.trim().length < 2 || searching}>Найти</Button>
         </form>
         {searching && (
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8 }} role="status" aria-live="polite">
@@ -115,7 +123,8 @@ export default function Found({ summary, excluded, chatKind, onChatKind, onToggl
             <Text>Ищем</Text>
           </div>
         )}
-        {searched && !searching && matches.length === 0 && <Text style={{ marginTop: 8 }}>Ничего не найдено</Text>}
+        {searchError && <Text style={{ marginTop: 8 }}>{searchError}</Text>}
+        {searched && !searching && !searchError && matches.length === 0 && <Text style={{ marginTop: 8 }}>Ничего не найдено</Text>}
         {matches.length > 0 && (
           <ul style={{ ...LIST, marginTop: 8 }}>
             {matches.map((m, i) => (

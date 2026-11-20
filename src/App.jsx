@@ -14,6 +14,8 @@ export default function App() {
   const [running, setRunning] = useState(false);
   const booted = useRef(false);
   const runLock = useRef(false);
+  // Поколение запуска: goHome/pick/demo инкрементят, устаревшие finished/result игнорируются.
+  const runGen = useRef(0);
 
   const opened = async (reply, zip = false) => {
     dispatch({ type: 'opened', reply, zip });
@@ -23,13 +25,17 @@ export default function App() {
   const run = async () => {
     if (runLock.current) return;
     runLock.current = true;
+    const gen = runGen.current;
     setRunning(true);
     try {
       dispatch({ type: 'started' });
       const reply = await api.start(s.excluded);
+      if (gen !== runGen.current) return;
       dispatch({ type: 'finished', reply });
       if (reply?.error === 'busy') return;
-      dispatch({ type: 'result', reply: await api.result() });
+      const result = await api.result();
+      if (gen !== runGen.current) return;
+      dispatch({ type: 'result', reply: result });
     } finally {
       runLock.current = false;
       setRunning(false);
@@ -37,6 +43,7 @@ export default function App() {
   };
 
   const pick = async (kind) => {
+    runGen.current++;
     api.setDemo(false);
     setPicking(true);
     try {
@@ -48,6 +55,7 @@ export default function App() {
 
   const demo = async () => {
     if (picking || running) return;
+    runGen.current++;
     api.setDemo(true);
     setPicking(true);
     try {
@@ -60,9 +68,12 @@ export default function App() {
   const open = async (f) => dispatch({ type: 'notice', text: stopText((await f())?.error) });
 
   const goHome = () => {
-    // Возврат на стартовый экран. Если скачивание идёт, сначала останавливаем,
-    // чтобы оно не продолжалось невидимым.
-    if (s.screen === 'download' && s.progress) api.stop();
+    // Возврат на стартовый экран. Инвалидируем незавершённый запуск, сбрасываем демо
+    // и останавливаем скачивание (даже если прогресс ещё не пришёл), чтобы оно не
+    // продолжалось невидимым.
+    runGen.current++;
+    api.setDemo(false);
+    if (s.screen === 'download') api.stop();
     dispatch({ type: 'pick' });
   };
 
@@ -93,7 +104,7 @@ export default function App() {
                 </Panel>
                 <Panel id="found">
                   <AppHeader onHome={goHome} />
-                  <Found summary={s.summary} excluded={s.excluded} chatKind={s.chatKind} onChatKind={(kind) => dispatch({ type: 'chat_kind', kind })} onToggle={(peer) => dispatch({ type: 'toggle', peer })} onToggleAll={() => dispatch({ type: 'toggle_all' })} onStart={run} onPickOther={() => dispatch({ type: 'pick' })} onOpenPage={(page) => open(() => api.openPage(page))} disabled={running} />
+                  <Found key={s.summary?.root} summary={s.summary} excluded={s.excluded} chatKind={s.chatKind} onChatKind={(kind) => dispatch({ type: 'chat_kind', kind })} onToggle={(peer) => dispatch({ type: 'toggle', peer })} onToggleAll={() => dispatch({ type: 'toggle_all' })} onStart={run} onPickOther={() => dispatch({ type: 'pick' })} onOpenPage={(page) => open(() => api.openPage(page))} disabled={running} />
                 </Panel>
                 <Panel id="download">
                   <AppHeader onHome={goHome} />
@@ -105,7 +116,7 @@ export default function App() {
                   <Notice text={s.notice} mode="error" />
                 </Panel>
               </View>
-              {(picking || running) && (
+              {(picking || (running && !s.progress)) && (
                 <Overlay
                   text={
                     s.unzip ? unzipText(s.unzip)

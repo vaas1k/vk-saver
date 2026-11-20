@@ -75,8 +75,11 @@ jobs:
       - name: cargo deny
         if: ${{ !cancelled() }}
         run: |
-          cargo deny --manifest-path src-tauri/Cargo.toml check bans sources > "$REPORTS/cargo-deny.txt" 2>&1
-          echo $? > "$REPORTS/cargo-deny.exit"
+          if cargo deny --manifest-path src-tauri/Cargo.toml check bans sources > "$REPORTS/cargo-deny.txt" 2>&1; then
+            echo 0 > "$REPORTS/cargo-deny.exit"
+          else
+            echo $? > "$REPORTS/cargo-deny.exit"
+          fi
 
       - name: gitleaks
         if: ${{ !cancelled() }}

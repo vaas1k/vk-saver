@@ -18,18 +18,54 @@ pub struct Match {
     pub snippet: String,
 }
 
-/// Strips tags and decodes entities from a cp1251 page; keeps the message text.
+/// Strips tags and decodes entities from a page; keeps the message text.
+/// UTF-8 exports are detected like scan does; everything else is cp1251.
+/// <script>/<style> blocks are dropped whole: their inner text is code, not messages.
 fn text_of(bytes: &[u8]) -> String {
-    let decoded = decode_label(bytes, false);
+    let decoded = decode_label(bytes, std::str::from_utf8(bytes).is_ok());
     let mut out = String::with_capacity(decoded.len());
-    let mut in_tag = false;
-    for c in decoded.chars() {
-        match c {
-            '<' => in_tag = true,
-            '>' => in_tag = false,
-            c if !in_tag => out.push(c),
-            _ => {}
+    let mut chars = decoded.chars().peekable();
+    let mut skip: Option<String> = None;
+    let mut pending = String::new();
+    while let Some(c) = chars.next() {
+        if let Some(close) = &skip {
+            pending.push(c.to_ascii_lowercase());
+            while pending.chars().count() > close.chars().count() {
+                pending.remove(0);
+            }
+            if pending.ends_with(close.as_str()) {
+                skip = None;
+                pending.clear();
+            }
+            continue;
         }
+        if c == '<' {
+            let mut name = String::new();
+            let mut closing = false;
+            if chars.peek() == Some(&'/') {
+                closing = true;
+                chars.next();
+            }
+            while let Some(&nc) = chars.peek() {
+                if nc.is_ascii_alphanumeric() {
+                    name.push(nc.to_ascii_lowercase());
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            while let Some(nc) = chars.next() {
+                if nc == '>' {
+                    break;
+                }
+            }
+            if !closing && (name == "script" || name == "style") {
+                skip = Some(format!("</{name}>"));
+                pending.clear();
+            }
+            continue;
+        }
+        out.push(c);
     }
     unescape(&out)
 }
@@ -62,10 +98,15 @@ pub fn search(root: &Path, query: &str, limit: usize) -> Result<Vec<Match>, Stop
             continue;
         };
         let path = page.split('/').fold(root.to_path_buf(), |p, c| p.join(c));
-        let bytes = read_page(&path).map_err(|e| Stop::Storage(e.to_string()))?;
+        // Oversized or unreadable pages are skipped, not fatal: one bad page must
+        // not abort the search over the whole archive (scan skips them too).
+        let Ok(bytes) = read_page(&path) else {
+            continue;
+        };
         let text = text_of(&bytes);
-        // Cyrillic lowercase is byte-stable in UTF-8, so match positions in the
-        // lowered text slice the original cleanly; floor_char_boundary guards the rest.
+        // Match positions come from the lowered text. Cyrillic lowercase is
+        // byte-stable in UTF-8; a few rare letters (İ, ẞ) change byte length, so
+        // floor_char_boundary keeps slicing panic-free (snippet may shift by a char).
         let lower = text.to_lowercase();
         for (start, _) in lower.match_indices(needle.as_str()) {
             out.push(Match {
@@ -123,5 +164,28 @@ mod tests {
                 x.snippet.len()
             );
         }
+    }
+
+    #[test]
+    fn utf8_pages_are_searched() {
+        let root = fake_export(
+            "search-utf8",
+            FakeExportOpts {
+                utf8: true,
+                ..Default::default()
+            },
+        );
+        let m = search(&root, "привет", 10).unwrap();
+        assert!(!m.is_empty(), "UTF-8 export must be searchable");
+    }
+
+    #[test]
+    fn script_and_style_content_is_not_searched() {
+        let html = "<html><head><style>привет css</style><script>привет js</script></head>\
+                    <body><div class=\"item\">настоящий привет</div></body></html>";
+        let text = text_of(html.as_bytes());
+        assert!(text.contains("настоящий привет"));
+        assert!(!text.contains("css"));
+        assert!(!text.contains("js"));
     }
 }

@@ -47,7 +47,7 @@ export function Overlay({ text = 'Подождите', progress = null }) {
           gap: 12,
         }}
       >
-        <Spinner size="large" />
+        <Spinner size="l" />
         <Text>{text}</Text>
         {progress != null && <Progress value={progress} style={{ width: 240 }} aria-label={text} />}
       </div>
