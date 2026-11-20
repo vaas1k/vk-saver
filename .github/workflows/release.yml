@@ -54,8 +54,8 @@ jobs:
       - name: Sign exe (keyless)
         run: |
           cosign sign-blob --yes \
-            --output-signature vk-saver.exe.sig \
-            --output-certificate vk-saver.exe.pem \
+            --bundle vk-saver.exe.bundle \
+            --new-bundle-format \
             src-tauri/target/release/vk-saver.exe
 
       - name: Publish release
@@ -64,7 +64,7 @@ jobs:
         run: |
           mkdir out
           cp src-tauri/target/release/vk-saver.exe THIRD-PARTY-LICENSES.txt out/
-          cp vk-saver.exe.sig vk-saver.exe.pem out/
+          cp vk-saver.exe.bundle out/
           cd out
           sha256sum vk-saver.exe > SHA256SUMS.txt
-          gh release create "$TAG" --verify-tag --title "$TAG" vk-saver.exe THIRD-PARTY-LICENSES.txt SHA256SUMS.txt vk-saver.exe.sig vk-saver.exe.pem
+          gh release create "$TAG" --verify-tag --title "$TAG" vk-saver.exe THIRD-PARTY-LICENSES.txt SHA256SUMS.txt vk-saver.exe.bundle
