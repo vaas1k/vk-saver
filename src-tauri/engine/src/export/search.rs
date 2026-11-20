@@ -84,16 +84,22 @@ pub fn search(root: &Path, query: &str, limit: usize) -> Result<Vec<Match>, Stop
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::{fake_export, FakeExportOpts};
+    use crate::testing::{FakeExportOpts, fake_export};
 
     #[test]
     fn finds_messages_case_insensitively() {
         let root = fake_export("search", FakeExportOpts::default());
         let m = search(&root, "привет", 10).unwrap();
         assert!(!m.is_empty());
-        assert!(m.iter().all(|x| x.snippet.to_lowercase().contains("привет")));
+        assert!(
+            m.iter()
+                .all(|x| x.snippet.to_lowercase().contains("привет"))
+        );
         // "Привет" is written in the PEER_A chat of the fixture.
-        assert!(m.iter().any(|x| x.peer.to_string() == crate::testing::PEER_A));
+        assert!(
+            m.iter()
+                .any(|x| x.peer.to_string() == crate::testing::PEER_A)
+        );
         assert!(m.iter().all(|x| x.page.starts_with("messages/")));
     }
 
@@ -111,7 +117,11 @@ mod tests {
         assert!(!m.is_empty());
         for x in &m {
             // 2 * SNIPPET bytes of context + the needle + two 3-byte ellipsis characters.
-            assert!(x.snippet.len() <= 2 * SNIPPET + 6 + "вторая страница".len(), "{}", x.snippet.len());
+            assert!(
+                x.snippet.len() <= 2 * SNIPPET + 6 + "вторая страница".len(),
+                "{}",
+                x.snippet.len()
+            );
         }
     }
 }

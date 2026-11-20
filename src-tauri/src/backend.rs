@@ -300,10 +300,12 @@ impl Worker {
             Job::Result => Ok(self.session()?.result()?.to_json()),
             Job::Search { query, limit } => {
                 let found = self.session()?.search(&query, limit)?;
-                Ok(json!(found
-                    .into_iter()
-                    .map(|m| json!({ "peer": m.peer, "page": m.page, "snippet": m.snippet }))
-                    .collect::<Vec<_>>()))
+                Ok(json!(
+                    found
+                        .into_iter()
+                        .map(|m| json!({ "peer": m.peer, "page": m.page, "snippet": m.snippet }))
+                        .collect::<Vec<_>>()
+                ))
             }
             Job::Undo => {
                 let r = self.session()?.undo()?;
