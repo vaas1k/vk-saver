@@ -1,7 +1,7 @@
 import { AdaptivityProvider, AppRoot, ConfigProvider, Panel, SplitCol, SplitLayout, View } from '@vkontakte/vkui';
 import { useEffect, useReducer, useRef, useState } from 'react';
 import * as api from './api.js';
-import { initial, reduce, stopText } from './run-state.js';
+import { initial, reduce, stopText, unzipText } from './run-state.js';
 import Download from './screens/Download.jsx';
 import Found from './screens/Found.jsx';
 import Pick from './screens/Pick.jsx';
@@ -105,7 +105,15 @@ export default function App() {
                   <Notice text={s.notice} mode="error" />
                 </Panel>
               </View>
-              {(picking || running) && <Overlay />}
+              {(picking || running) && (
+                <Overlay
+                  text={
+                    s.unzip ? unzipText(s.unzip)
+                      : picking ? 'Сканируем архив'
+                        : 'Подождите'
+                  }
+                />
+              )}
             </SplitCol>
           </SplitLayout>
         </AppRoot>

@@ -1,4 +1,5 @@
 import { Box, Button, FormStatus, PanelHeader, Spinner, Text } from '@vkontakte/vkui';
+import { createPortal } from 'react-dom';
 
 // Одна левая вертикальная линия для заголовков экранов и контента.
 export const SCREEN_TITLE = { fontSize: 17, fontWeight: 600, marginBottom: 12 };
@@ -17,8 +18,10 @@ export function AppHeader({ onHome }) {
 }
 
 // Затемнение всего окна со спиннером на время ожидания (выбор архива, старт скачивания).
+// Портал в document.body: вне vkui-раскладки его не могут обрезать или сместить
+// transform/overflow у View и SplitCol.
 export function Overlay({ text = 'Подождите' }) {
-  return (
+  return createPortal(
     <div
       role="alert"
       aria-busy="true"
@@ -47,7 +50,8 @@ export function Overlay({ text = 'Подождите' }) {
         <Spinner size="large" />
         <Text>{text}</Text>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

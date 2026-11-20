@@ -27,7 +27,10 @@ export default function Download({ s, onStop }) {
       </Box>
       <Notice text={s.pausedText} />
       <Box padding="m">
-        <Button size="l" mode="secondary" onClick={onStop} disabled={s.stopping}>Остановить</Button>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <Button size="l" mode="secondary" onClick={onStop} disabled={s.stopping}>Остановить</Button>
+          {s.stopping && <Spinner size="s" />}
+        </div>
       </Box>
     </Group>
   );
