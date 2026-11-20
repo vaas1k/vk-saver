@@ -168,6 +168,7 @@ mod tests {
             videos: 2,
             docs: 1,
             photo_links: 3,
+            last: None,
         }
     }
 

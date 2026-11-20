@@ -4,6 +4,7 @@ use super::known::Known;
 use super::report::{diagnostics, write_report};
 use super::rewrite::{RewriteReport, UndoReport, rewrite_all, undo};
 use super::scan::{ChatGroup, Scan, Summary, scan, summarize};
+use super::search::{Match, search};
 use super::{Export, display_path};
 use crate::cdn::Cdn;
 use crate::clock::Clock;
@@ -159,6 +160,10 @@ impl Session {
         let summary = summarize(&s, &|u| saved.contains_key(u), self.root_display(), free);
         self.scan = Some(s);
         Ok(summary)
+    }
+
+    pub fn search(&self, query: &str, limit: usize) -> Result<Vec<Match>, Stop> {
+        search(self.export.root(), query, limit)
     }
 
     pub fn start(

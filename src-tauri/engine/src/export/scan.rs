@@ -90,6 +90,8 @@ pub struct Chat {
     pub videos: u64,
     pub docs: u64,
     pub photo_links: u64,
+    /// Unix time of the newest message; None when the chat has no dated messages.
+    pub last: Option<i64>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -159,7 +161,7 @@ fn peer_of(dir: &str) -> Option<i64> {
 }
 
 /// The peer of a `messages/<dir>/<file>.html` page.
-fn chat_peer(page: &str) -> Option<i64> {
+pub(crate) fn chat_peer(page: &str) -> Option<i64> {
     match page.split('/').collect::<Vec<_>>()[..] {
         ["messages", dir, _] => peer_of(dir),
         _ => None,
@@ -464,6 +466,9 @@ fn message_found(page: &Arc<str>, bytes: &[u8], drift: &mut Drift, chat: &mut Ch
             }
             date
         });
+        if let Some(d) = date {
+            chat.last = Some(chat.last.map_or(d, |m| m.max(d)));
+        }
         let atts = positions(item, ATTACHMENT);
         let body = atts.first().copied().unwrap_or(item.len());
         out.extend(page_found(page, &item[..body], drift));
@@ -609,6 +614,7 @@ pub fn scan(root: &Path, cancel: &AtomicBool) -> Result<Scan, Stop> {
                 videos: 0,
                 docs: 0,
                 photo_links: 0,
+                last: None,
             });
         }
         let chat = s.chats.last_mut().expect("pushed above");
@@ -640,6 +646,7 @@ pub struct ChatGroup {
     pub videos: u64,
     pub docs: u64,
     pub photo_links: u64,
+    pub last: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -676,6 +683,7 @@ impl Summary {
                     "videos": c.videos,
                     "docs": c.docs,
                     "photo_links": c.photo_links,
+                    "last": c.last,
                 })
             })
             .collect();
@@ -747,6 +755,7 @@ pub fn summarize(
                 videos: c.videos,
                 docs: c.docs,
                 photo_links: c.photo_links,
+                last: c.last,
             }
         })
         .collect();
@@ -1317,6 +1326,7 @@ mod tests {
             videos: 0,
             docs: 0,
             photo_links: 0,
+            last: None,
         };
         let found = message_found(
             &"messages/1/messages0.html".into(),

@@ -158,6 +158,16 @@ async fn open_folder(b: State<'_, Backend>) -> Result<Value, String> {
 }
 
 #[tauri::command]
+async fn open_page(b: State<'_, Backend>, page: String) -> Result<Value, String> {
+    Ok(call(&b, Job::OpenPage(page)).await)
+}
+
+#[tauri::command]
+async fn search(b: State<'_, Backend>, query: String) -> Result<Value, String> {
+    Ok(call(&b, Job::Search { query, limit: 200 }).await)
+}
+
+#[tauri::command]
 fn open_export_help(b: State<'_, Backend>) -> Value {
     b.open_export_help()
 }
@@ -245,6 +255,8 @@ pub fn run() {
             save_diagnostics,
             open_in_browser,
             open_folder,
+            open_page,
+            search,
             open_export_help
         ])
         .run(tauri::generate_context!())

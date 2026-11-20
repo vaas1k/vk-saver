@@ -246,13 +246,14 @@ test('reused files shown on result', async () => {
   assert.equal(typeof reply.reused, 'number');
 });
 
-test('save report button calls saveDiagnostics', async () => {
+test('developer buttons removed from the result screen', async () => {
   const result = readFileSync(new URL('../src/screens/Result.jsx', import.meta.url), 'utf8');
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   const api = readFileSync(new URL('../src/api.js', import.meta.url), 'utf8');
-  assert.match(result, /onClick=\{onSaveReport\}[^>]*>Сохранить отчёт для разработчика</);
-  assert.match(app, /onSaveReport=\{\(\) => saveReport\(\)\}/);
-  assert.match(app, /api\.saveDiagnostics\(\)/);
+  assert.doesNotMatch(result, /Сохранить отчёт для разработчика/);
+  assert.doesNotMatch(result, /Вернуть исходные страницы/);
+  assert.doesNotMatch(app, /saveReport|undo_ask/);
+  // The backend command stays: only the UI entry points are gone.
   assert.match(api, /saveDiagnostics = \(\) => call\('save_diagnostics'\)/);
   assert.deepEqual(await invoke('save_diagnostics'), { saved: true });
 });
@@ -317,6 +318,17 @@ test('chat kind boundaries', () => {
   assert.equal(isGroupChat(1999999999), false);
   assert.equal(isGroupChat(2000000000), true);
   assert.equal(isGroupChat(-200003), false);
+});
+
+test('chat sorting keys', () => {
+  const c = (peer, label, count, bytes, last) => ({ peer, label, photos: { count, bytes }, voice: { count: 1, bytes: 10 }, last });
+  const sum = { chats: [c(1, 'Бэ', 10, 100, 3), c(2, 'А', 5, 500, 9), c(3, 'Вэ', 20, 50, 1)] };
+  const peers = (sort) => chatRows(sum, sort).map((x) => x.peer);
+  assert.deepEqual(peers('size'), [2, 1, 3]);
+  assert.deepEqual(peers('messages'), [3, 1, 2]);
+  assert.deepEqual(peers('date'), [2, 1, 3]);
+  assert.deepEqual(peers('name'), [2, 1, 3]);
+  assert.deepEqual(peers('bogus'), [2, 1, 3]); // неизвестный ключ = сортировка по умолчанию
 });
 
 test('toggle all with kind filter touches only shown chats', () => {

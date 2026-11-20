@@ -1,4 +1,4 @@
-// Dev-only stand-in for the Tauri backend, never part of the production bundle (marker VkSaverFake).
+// Stand-in for the Tauri backend: used in dev without Tauri and in the production demo mode.
 // Same JSON shapes as src-tauri, synthetic numbers only.
 const handlers = {};
 let cancel = false;
@@ -10,7 +10,7 @@ export function listen(name, handler) {
 
 const emit = (name, payload) => handlers[name]?.forEach((h) => h(payload));
 const group = (count, bytes, saved = 0) => ({ count, bytes, saved });
-const chat = (peer, label, count) => ({ peer, label, photos: group(count, count * 470000), voice: group(2, 40000), videos: 1, docs: 0, photo_links: 0 });
+const chat = (peer, label, count, last = 0) => ({ peer, label, photos: group(count, count * 470000), voice: group(2, 40000), videos: 1, docs: 0, photo_links: 0, last });
 const TOTAL = 40;
 const TICK_MS = 150;
 
@@ -21,7 +21,7 @@ const SUMMARY = {
   messages: group(4400, 5000000000),
   voice: group(93, 20971520),
   other: group(1, 90000),
-  chats: [chat(2000000101, 'Тестовый чат', 1204), chat(2000000102, '', 310), chat(100002, 'Тестовый собеседник', 57), chat(-200003, 'Тестовое сообщество', 9)],
+  chats: [chat(2000000101, 'Тестовый чат', 1204, 1757952000), chat(2000000102, '', 310, 1753545600), chat(100002, 'Тестовый собеседник', 57, 1756483200), chat(-200003, 'Тестовое сообщество', 9, 1751472000)],
   videos: 310,
   docs: 57,
   photo_links: 12,
@@ -68,10 +68,18 @@ const COMMANDS = {
     return null;
   },
   result: () => ({ saved: 5000, bytes: 7000000000, gone: 210, host_dead: 60, failed: 14, videos: 310, docs: 57, photo_links: 12 }),
+  search: ({ query }) => {
+    const q = query.toLowerCase();
+    return [
+      { peer: 2000000101, page: 'messages/2000000101/messages0.html', snippet: `Тестовый чат: "${query}" – сообщение из демо-переписки` },
+      { peer: 100002, page: 'messages/100002/messages0.html', snippet: `Тестовый собеседник: ещё одно упоминание "${query}"` },
+    ].filter((m) => m.snippet.toLowerCase().includes(q) || !q);
+  },
   undo: () => ({ restored: 2, busy: 0, kept: 0, skipped: 0 }),
   save_diagnostics: () => ({ saved: true }),
   open_in_browser: () => ({}),
   open_folder: () => ({}),
+  open_page: () => ({}),
   open_export_help: () => ({}),
 };
 

@@ -180,11 +180,20 @@ export const shownChats = (rows, kind) => (kind === 'all' ? rows : rows.filter((
 
 export const allSelected = (peers, excluded) => peers.every((p) => !excluded.includes(String(p)));
 
-export function chatRows(sum) {
+// Сортировки списка чатов; ключи совпадают со значениями контрола в Found.
+const CHAT_SORTS = {
+  size: (a, b) => b.bytes - a.bytes,
+  messages: (a, b) => b.count - a.count,
+  date: (a, b) => (b.last ?? 0) - (a.last ?? 0),
+  name: (a, b) => a.label.localeCompare(b.label, 'ru'),
+};
+
+export function chatRows(sum, sort = 'size') {
+  const by = CHAT_SORTS[sort] ?? CHAT_SORTS.size;
   return [...sum.chats]
-    .map((c) => ({ peer: c.peer, label: c.label || 'Чат ' + c.peer, bytes: c.photos.bytes + c.voice.bytes, count: c.photos.count + c.voice.count }))
+    .map((c) => ({ peer: c.peer, label: c.label || 'Чат ' + c.peer, bytes: c.photos.bytes + c.voice.bytes, count: c.photos.count + c.voice.count, last: c.last }))
     .filter((c) => c.count > 0)
-    .sort((a, b) => b.bytes - a.bytes)
+    .sort(by)
     .map((c) => ({ ...c, text: formatCount(c.count) + ', ~' + formatBytes(c.bytes) }));
 }
 

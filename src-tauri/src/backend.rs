@@ -53,6 +53,8 @@ pub enum Job {
     SaveDiagnostics(PathBuf),
     OpenInBrowser,
     OpenFolder,
+    OpenPage(String),
+    Search { query: String, limit: usize },
 }
 
 #[derive(Default)]
@@ -178,13 +180,15 @@ impl Backend {
             Ok(tx) => tx,
             Err(kind) => return Ok(error(kind)),
         };
-        if let Job::OpenInBrowser | Job::OpenFolder = job {
+        if let Job::OpenInBrowser | Job::OpenFolder | Job::OpenPage(_) = job {
             let Some(root) = self.last_export() else {
                 return Ok(error(Stop::NotExport.kind()));
             };
             let mut path = PathBuf::from(root);
-            if let Job::OpenInBrowser = job {
-                path.push("index.html");
+            match job {
+                Job::OpenInBrowser => path.push("index.html"),
+                Job::OpenPage(page) => path.push(page),
+                _ => {}
             }
             return Ok(match self.opener.open_path(&path) {
                 Ok(()) => json!({}),
@@ -294,6 +298,13 @@ impl Worker {
                 Ok(r.to_json())
             }
             Job::Result => Ok(self.session()?.result()?.to_json()),
+            Job::Search { query, limit } => {
+                let found = self.session()?.search(&query, limit)?;
+                Ok(json!(found
+                    .into_iter()
+                    .map(|m| json!({ "peer": m.peer, "page": m.page, "snippet": m.snippet }))
+                    .collect::<Vec<_>>()))
+            }
             Job::Undo => {
                 let r = self.session()?.undo()?;
                 Ok(
@@ -316,7 +327,9 @@ impl Worker {
                 }
                 Ok(json!({ "saved": true }))
             }
-            Job::OpenInBrowser | Job::OpenFolder => unreachable!("handled in Backend::run"),
+            Job::OpenInBrowser | Job::OpenFolder | Job::OpenPage(_) => {
+                unreachable!("handled in Backend::run")
+            }
         }
     }
 }

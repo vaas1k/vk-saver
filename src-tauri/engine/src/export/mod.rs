@@ -4,6 +4,7 @@ pub mod known;
 pub mod report;
 pub mod rewrite;
 pub mod scan;
+pub mod search;
 pub mod session;
 pub mod text;
 pub mod unzip;
