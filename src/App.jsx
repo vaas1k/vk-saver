@@ -112,6 +112,7 @@ export default function App() {
                       : picking ? 'Сканируем архив'
                         : 'Подождите'
                   }
+                  progress={s.unzip && s.unzip.total ? (100 * s.unzip.done) / s.unzip.total : null}
                 />
               )}
             </SplitCol>
