@@ -83,4 +83,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd out
-          gh release create "$TAG" --verify-tag --title "$TAG" vk-saver.exe vk-saver-x86.exe vk-saver-setup.exe vk-saver-setup-x86.exe THIRD-PARTY-LICENSES.txt SHA256SUMS.txt vk-saver.exe.bundle vk-saver-x86.exe.bundle vk-saver-setup.exe.bundle vk-saver-setup-x86.exe.bundle
+          gh release create "$TAG" --verify-tag --title "$TAG" vk-saver.exe vk-saver-x86.exe vk-saver-setup.exe vk-saver-setup-x86.exe THIRD-PARTY-LICENSES.txt SHA256SUMS.txt vk-saver.exe.bundle vk-saver-x86.exe.bundle vk-saver-setup.exe.bundle vk-saver-setup-x86.exe.bundle --notes "Скачать: vk-saver.exe (portable 64-bit) - https://github.com/vaas1k/vk-saver/releases/download/$TAG/vk-saver.exe | установщик - https://github.com/vaas1k/vk-saver/releases/download/$TAG/vk-saver-setup.exe | x86: vk-saver-x86.exe / vk-saver-setup-x86.exe | Проверка: SHA256SUMS.txt, подпись cosign, аттестация. SmartScreen: Подробнее -> Выполнить в любом случае." 
