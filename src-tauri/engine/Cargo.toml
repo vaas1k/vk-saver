@@ -13,4 +13,4 @@ rusqlite = { version = "0.42.0", features = ["bundled"] }
 fs4 = { version = "1.1.0", default-features = false }
 filetime = "0.2.29"
 sha2 = { version = "0.11.1", default-features = false, features = ["alloc"] }
-zip = { version = "=9.5.1", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+zip = { version = "=9.7.2", default-features = false, features = ["deflate-flate2-zlib-rs"] }
